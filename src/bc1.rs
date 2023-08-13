@@ -52,6 +52,7 @@ impl Table {
     }
 }
 
+/// Encodes a 16 texels into a single BC1 block.
 pub fn encode(input: [Rgb8; 16]) -> Block8 {
     let (min, max) = find_min_max(input);
 
