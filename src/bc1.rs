@@ -1,5 +1,6 @@
 use crate::{read_u16_le, Block8, Rgb8};
 
+#[derive(Debug)]
 struct Table {
     colors: [Rgb8; 4],
 }
@@ -65,11 +66,11 @@ pub fn encode(input: [Rgb8; 16]) -> Block8 {
     output[2] = c1.to_le_bytes()[0];
     output[3] = c1.to_le_bytes()[1];
 
-    for (row, window) in input.chunks(4).enumerate() {
-        let f0 = table.closest(window[0]);
-        let f1 = table.closest(window[1]);
-        let f2 = table.closest(window[2]);
-        let f3 = table.closest(window[3]);
+    for (row, chunk) in input.chunks(4).enumerate() {
+        let f0 = table.closest(chunk[0]);
+        let f1 = table.closest(chunk[1]);
+        let f2 = table.closest(chunk[2]);
+        let f3 = table.closest(chunk[3]);
 
         let byte = (f0 << 6) | (f1 << 4) | (f2 << 2) | f3;
         output[row + 4] = byte;
@@ -87,12 +88,12 @@ pub fn decode(input: Block8) -> [Rgb8; 16] {
 
     let mut output = [Rgb8::from_arry([0; 3]); 16];
     for row in 0..4 {
-        let byte = input[row];
+        let byte = input[row + 4];
 
         let f0 = (byte & 0b1100_0000) >> 6;
         let f1 = (byte & 0b0011_0000) >> 4;
         let f2 = (byte & 0b0000_1100) >> 2;
-        let f3 = byte & 0b0000_0000;
+        let f3 = byte & 0b0000_0011;
 
         output[row * 4] = table.get(f0);
         output[row * 4 + 1] = table.get(f1);
@@ -119,7 +120,7 @@ fn decode_565_rgb(rgb: u16) -> Rgb8 {
     Rgb8 {
         r: r as u8 * 4,
         g: g as u8 * 2,
-        b: b as u8 * 2,
+        b: b as u8 * 4,
     }
 }
 
@@ -127,18 +128,20 @@ fn find_min_max(input: [Rgb8; 16]) -> (Rgb8, Rgb8) {
     let mut min = u16::MAX;
     let mut max = 0;
 
-    let min_color = Rgb8::MAX;
-    let max_color = Rgb8::MIN;
+    let mut min_color = Rgb8::MAX;
+    let mut max_color = Rgb8::MIN;
 
     for color in input {
         let val = color.r as u16 + color.g as u16 * 2 + color.b as u16;
 
         if val < min {
             min = val;
+            min_color = color;
         }
 
         if val > max {
             max = val;
+            max_color = color;
         }
     }
 
@@ -152,7 +155,7 @@ mod tests {
     use super::{decode, encode};
 
     #[test]
-    fn bc1_reflexive() {
+    fn bc1_encode() {
         let input = [
             Rgb8 { r: 0, g: 1, b: 2 },
             Rgb8 { r: 3, g: 4, b: 5 },
@@ -173,8 +176,55 @@ mod tests {
         ];
 
         let block = encode(input);
-        let output = decode(block);
+        assert_eq!(
+            block,
+            [
+                0b0000_0000,
+                0b0000_0000,
+                0b1010_0011,
+                0b0001_0000,
+                0b0010_1101,
+                0b0000_1011,
+                0b0110_1101,
+                0b0010_1101,
+            ]
+        );
+    }
 
-        assert_eq!(input, output);
+    #[test]
+    fn bc1_decode() {
+        let input = [
+            0b0000_0000,
+            0b0000_0000,
+            0b1010_0011,
+            0b0001_0000,
+            0b0010_1101,
+            0b0000_1011,
+            0b0110_1101,
+            0b0010_1101,
+        ];
+
+        let output = decode(input);
+        assert_eq!(
+            output,
+            [
+                Rgb8 { r: 0, g: 0, b: 0 },
+                Rgb8 { r: 2, g: 3, b: 4 },
+                Rgb8 { r: 5, g: 6, b: 8 },
+                Rgb8 { r: 8, g: 10, b: 12 },
+                Rgb8 { r: 0, g: 0, b: 0 },
+                Rgb8 { r: 0, g: 0, b: 0 },
+                Rgb8 { r: 2, g: 3, b: 4 },
+                Rgb8 { r: 5, g: 6, b: 8 },
+                Rgb8 { r: 8, g: 10, b: 12 },
+                Rgb8 { r: 2, g: 3, b: 4 },
+                Rgb8 { r: 5, g: 6, b: 8 },
+                Rgb8 { r: 8, g: 10, b: 12 },
+                Rgb8 { r: 0, g: 0, b: 0 },
+                Rgb8 { r: 2, g: 3, b: 4 },
+                Rgb8 { r: 5, g: 6, b: 8 },
+                Rgb8 { r: 8, g: 10, b: 12 },
+            ]
+        );
     }
 }

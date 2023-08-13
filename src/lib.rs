@@ -49,3 +49,24 @@ impl Rgb8 {
 fn read_u16_le(a: u8, b: u8) -> u16 {
     u16::from_le_bytes([a, b])
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Rgb8;
+
+    #[test]
+    fn distance_zero() {
+        let lhs = Rgb8::MIN;
+        let rhs = Rgb8::MIN;
+
+        assert_eq!(lhs.distance(rhs), 0);
+    }
+
+    #[test]
+    fn distance_min_max() {
+        let lhs = Rgb8::MIN;
+        let rhs = Rgb8::MAX;
+
+        assert_eq!(lhs.distance(rhs), (255 * 255) * 3);
+    }
+}
