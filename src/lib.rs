@@ -4,8 +4,47 @@
 extern crate std;
 
 pub mod bc1;
+pub mod bc2;
+pub mod bc7;
 
 pub type Block8 = [u8; 8];
+pub type Block16 = [u8; 16];
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Rgba8 {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+impl Rgba8 {
+    const MIN: Self = Self {
+        r: u8::MIN,
+        g: u8::MIN,
+        b: u8::MIN,
+        a: u8::MIN,
+    };
+
+    #[inline]
+    pub const fn from_array(v: [u8; 4]) -> Self {
+        Self {
+            r: v[0],
+            g: v[1],
+            b: v[2],
+            a: v[3],
+        }
+    }
+
+    #[inline]
+    fn to_rgb8(self) -> Rgb8 {
+        Rgb8 {
+            r: self.r,
+            g: self.g,
+            b: self.b,
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
