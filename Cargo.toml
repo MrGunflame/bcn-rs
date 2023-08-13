@@ -1,10 +1,11 @@
 [package]
 name = "bcn"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["MrGunflame <git@robbsrv.de>"]
-description = "Work in progress"
-license = "MIT"
+description = "Texture Block Compression"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/MrGunflame/bcn-rs"
 
 [dependencies]
 
