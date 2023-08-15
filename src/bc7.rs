@@ -1,3 +1,4 @@
+use crate::bits::BitReader;
 use crate::{Block16, Rgba8};
 
 pub fn decode(input: Block16) -> [Rgba8; 16] {
@@ -13,7 +14,9 @@ pub fn decode(input: Block16) -> [Rgba8; 16] {
 }
 
 fn decode_texel(input: Block16, x: u8, y: u8) -> Rgba8 {
-    let mode = decode_mode(input[0]);
+    let mut reader = BitReader::new(input);
+
+    let mode = decode_mode(&mut reader);
 
     // A all-zero bit pattern is invalid. The decoder must
     // return an zeroed block.
@@ -23,6 +26,7 @@ fn decode_texel(input: Block16, x: u8, y: u8) -> Rgba8 {
 
     let mut subset_index = 0;
     let mut num_subsets = 1;
+    let partition = 0;
 
     if mode == Mode::Mode0
         || mode == Mode::Mode1
@@ -31,19 +35,19 @@ fn decode_texel(input: Block16, x: u8, y: u8) -> Rgba8 {
         || mode == Mode::Mode7
     {
         num_subsets = get_num_subsets(mode);
-        let partition = decode_partition(mode, input);
+        let partition = decode_partition(mode, &mut reader);
         subset_index = get_subset_index(num_subsets, partition, x, y);
     }
 
-    let endpoints = decode_endpoints(mode, input);
+    let endpoints = decode_endpoints(mode, &mut reader);
 
     let endpoint_start = endpoints[2 * subset_index as usize];
     let endpoint_end = endpoints[2 * subset_index as usize];
 
-    let color_index = get_color_index(mode, input, x, y);
+    let color_index = get_color_index(mode, &mut reader, x, y, num_subsets, partition);
     let color_bitcount = get_color_bitcount(mode);
-    let alpha_index = todo!();
-    let alpha_bitcount = todo!();
+    // let alpha_index = todo!();
+    // let alpha_bitcount = todo!();
 
     let r = interpolate(
         endpoint_start.r,
@@ -63,49 +67,54 @@ fn decode_texel(input: Block16, x: u8, y: u8) -> Rgba8 {
         color_index,
         color_bitcount,
     );
-    let a = interpolate(
-        endpoint_start.a,
-        endpoint_end.a,
-        alpha_index,
-        alpha_bitcount,
-    );
+    // let a = interpolate(
+    //     endpoint_start.a,
+    //     endpoint_end.a,
+    //     alpha_index,
+    //     alpha_bitcount,
+    // );
+    let a = 255;
 
     Rgba8 { r, g, b, a }
 }
 
-fn decode_mode(input: u8) -> Mode {
-    if (input & 0b1) == 0b1 {
+fn decode_mode(reader: &mut BitReader<16>) -> Mode {
+    // Eat bits until we find the '1' indicating the mode.
+
+    if reader.read(1) == 1 {
         return Mode::Mode0;
     }
 
-    if (input & 0b11) == 0b10 {
+    if reader.read(1) == 1 {
         return Mode::Mode1;
     }
 
-    if (input & 0b111) == 0b100 {
+    if reader.read(1) == 1 {
         return Mode::Mode2;
     }
 
-    if (input & 0b1111) == 0b1000 {
+    if reader.read(1) == 1 {
         return Mode::Mode3;
     }
 
-    if (input & 0b1_1111) == 0b1_0000 {
+    if reader.read(1) == 1 {
         return Mode::Mode4;
     }
 
-    if (input & 0b11_1111) == 0b10_0000 {
+    if reader.read(1) == 1 {
         return Mode::Mode5;
     }
 
-    if (input & 0b111_1111) == 0b100_0000 {
+    if reader.read(1) == 1 {
         return Mode::Mode6;
     }
 
-    if (input & 0b1111_1111) == 0b1000_0000 {
+    if reader.read(1) == 1 {
         return Mode::Mode7;
     }
 
+    // The first byte contains an all-zero bit pattern.
+    // This not a valid mode.
     Mode::Invalid
 }
 
@@ -139,12 +148,9 @@ fn get_num_subsets(mode: Mode) -> u8 {
     }
 }
 
-fn decode_partition(mode: Mode, block: Block16) -> u8 {
+fn decode_partition(mode: Mode, reader: &mut BitReader<16>) -> u8 {
     match mode {
-        Mode::Mode0 => {
-            let byte = block[0];
-            (byte & 0b0001_1110) >> 1
-        }
+        Mode::Mode0 => reader.read(4) as u8,
         _ => todo!(),
     }
 }
@@ -158,40 +164,54 @@ fn get_subset_index(num_subsets: u8, partition_index: u8, x: u8, y: u8) -> u8 {
     }
 }
 
-fn decode_endpoints(mode: Mode, block: Block16) -> [Rgba8; 6] {
-    todo!()
-}
+fn decode_endpoints(mode: Mode, reader: &mut BitReader<16>) -> [Rgba8; 6] {
+    let mut output = [Rgba8::MIN; 6];
 
-fn get_color_index(mode: Mode, block: Block16, x: u8, y: u8, num_subsets: u8, partition: u8) -> u8 {
-    let partition_index = (x as usize + y as usize * 4) as u8;
-
-    let mut offset = partition_index * num_subsets;
-    match num_subsets {
-        2 => {
-            if partition_index > ANCHOR_INDICES_SUBSET_0[partition as usize] {
-                offset -= 1;
+    match mode {
+        Mode::Mode0 => {
+            for index in 0..6 {
+                output[index].r = reader.read(4) as u8;
             }
 
-            if partition_index > ANCHOR_INDICES_SUBSET_2_2[partition as usize] {
-                offset -= 1;
+            for index in 0..6 {
+                output[index].g = reader.read(4) as u8;
+            }
+
+            for index in 0..6 {
+                output[index].b = reader.read(4) as u8;
+            }
+
+            // P-bits as LSB
+            for color in &mut output {
+                let p = (reader.read(1) as u8) << 3;
+
+                // Duplicate the color bits for the lower bits after the P-bit.
+                let low_r = color.r >> 1;
+                let low_g = color.g >> 1;
+                let low_b = color.b >> 1;
+
+                color.r = (color.r << 4) | p | low_r;
+                color.g = (color.g << 4) | p | low_g;
+                color.b = (color.b << 4) | p | low_b;
             }
         }
-        3 => {
-            if partition_index > ANCHOR_INDICES_SUBSET_0[partition as usize] {
-                offset -= 1;
-            }
-
-            if partition_index > ANCHOR_INDICES_SUBSET_3_2[partition as usize] {
-                offset -= 1;
-            }
-
-            if partition_index > ANCHOR_INDICES_SUBSET_3_3[partition as usize] {
-                offset -= 1;
-            }
-        }
+        _ => todo!(),
     }
 
-    let mut read_len = match num_subsets {
+    output
+}
+
+fn get_color_index(
+    mode: Mode,
+    reader: &mut BitReader<16>,
+    x: u8,
+    y: u8,
+    num_subsets: u8,
+    partition: u8,
+) -> u8 {
+    let partition_index = (x as usize + y as usize * 4) as u8;
+
+    let read_len = match num_subsets {
         2 => {
             if partition_index == ANCHOR_INDICES_SUBSET_0[partition as usize] {
                 2 - 1
@@ -215,7 +235,7 @@ fn get_color_index(mode: Mode, block: Block16, x: u8, y: u8, num_subsets: u8, pa
         _ => todo!(),
     };
 
-    todo!()
+    reader.read(read_len) as u8
 }
 
 fn get_color_bitcount(mode: Mode) -> u8 {

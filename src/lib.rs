@@ -7,6 +7,8 @@ pub mod bc1;
 pub mod bc2;
 pub mod bc7;
 
+mod bits;
+
 pub type Block8 = [u8; 8];
 pub type Block16 = [u8; 16];
 
