@@ -9,3 +9,6 @@ repository = "https://github.com/MrGunflame/bcn-rs"
 
 [dependencies]
 
+
+[workspace]
+members = ["test_suite"]
