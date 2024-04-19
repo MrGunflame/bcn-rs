@@ -111,6 +111,9 @@ mod private {
 
         /// decode(&[u8; Self::BLOCK_SIZE], out: &mut [Rgba8; Self::NUM_PIXELS * Self::NUM_PIXELS]);
         fn decode(block: &[u8], out: &mut [Rgba8]);
+
+        /// encode(&[Rgba8; Self::NUM_PIXELS * Self::NUM_PIXELS], block: &mut [u8; Self::BLOCK_SIZE]);
+        fn encode(input: &[Rgba8], block: &mut [u8]);
     }
 }
 

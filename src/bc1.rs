@@ -1,5 +1,5 @@
 use crate::private::Sealed;
-use crate::{read_u16_le, Block8, Decoder, Rgb8, Rgba8};
+use crate::{read_u16_le, Block8, Decoder, Encoder, Rgb8, Rgba8};
 
 #[derive(Debug)]
 struct Table {
@@ -74,7 +74,7 @@ pub fn encode(input: [Rgb8; 16]) -> Block8 {
         let f2 = table.closest(chunk[2]);
         let f3 = table.closest(chunk[3]);
 
-        let byte = (f0 << 6) | (f1 << 4) | (f2 << 2) | f3;
+        let byte = (f0 << 0) | (f1 << 2) | (f2 << 4) | (f3 << 6);
         output[row + 4] = byte;
     }
 
@@ -153,6 +153,7 @@ fn find_min_max(input: [Rgb8; 16]) -> (Rgb8, Rgb8) {
 pub struct Bc1;
 
 impl Decoder for Bc1 {}
+impl Encoder for Bc1 {}
 
 impl Sealed for Bc1 {
     const BLOCK_SIZE: usize = 8;
@@ -165,6 +166,29 @@ impl Sealed for Bc1 {
         for (index, px) in pixels.iter().enumerate() {
             out[index] = Rgba8::from_array([px.r, px.g, px.b, 255]);
         }
+    }
+
+    fn encode(input: &[Rgba8], block: &mut [u8]) {
+        let pixels = [
+            input[0].to_rgb8(),
+            input[1].to_rgb8(),
+            input[2].to_rgb8(),
+            input[3].to_rgb8(),
+            input[4].to_rgb8(),
+            input[5].to_rgb8(),
+            input[6].to_rgb8(),
+            input[7].to_rgb8(),
+            input[8].to_rgb8(),
+            input[9].to_rgb8(),
+            input[10].to_rgb8(),
+            input[11].to_rgb8(),
+            input[12].to_rgb8(),
+            input[13].to_rgb8(),
+            input[14].to_rgb8(),
+            input[15].to_rgb8(),
+        ];
+
+        block.copy_from_slice(&encode(pixels));
     }
 }
 

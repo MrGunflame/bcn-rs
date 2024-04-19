@@ -6,3 +6,5 @@ edition = "2021"
 [dependencies]
 bcn = { version = "0.1.0", path = "../" }
 image = "0.24.7"
+ktx = "0.3.2"
+ktx2 = "0.3.0"
