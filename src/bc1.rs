@@ -1,4 +1,5 @@
-use crate::{read_u16_le, Block8, Rgb8};
+use crate::private::Sealed;
+use crate::{read_u16_le, Block8, Decoder, Rgb8, Rgba8};
 
 #[derive(Debug)]
 struct Table {
@@ -96,10 +97,10 @@ pub fn decode(input: Block8) -> [Rgb8; 16] {
         let f2 = (byte & 0b0000_1100) >> 2;
         let f3 = byte & 0b0000_0011;
 
-        output[row * 4] = table.get(f0);
-        output[row * 4 + 1] = table.get(f1);
-        output[row * 4 + 2] = table.get(f2);
-        output[row * 4 + 3] = table.get(f3);
+        output[row * 4 + 3] = table.get(f0);
+        output[row * 4 + 2] = table.get(f1);
+        output[row * 4 + 1] = table.get(f2);
+        output[row * 4 + 0] = table.get(f3);
     }
 
     output
@@ -114,14 +115,14 @@ fn encode_565_rgb(r: u8, g: u8, b: u8) -> u16 {
 }
 
 fn decode_565_rgb(rgb: u16) -> Rgb8 {
-    let r = rgb >> (5 + 6);
-    let g = (rgb >> 5) & 0b0011_1111;
-    let b = rgb & 0b0001_1111;
+    let r = (rgb & 0b1111_1000_0000_0000) >> 11;
+    let g = (rgb & 0b0000_0111_1110_0000) >> 5;
+    let b = rgb & 0b0000_0000_0001_1111;
 
     Rgb8 {
-        r: r as u8 * 4,
-        g: g as u8 * 2,
-        b: b as u8 * 4,
+        r: (r as u8) << 3,
+        g: (g as u8) << 2,
+        b: (b as u8) << 3,
     }
 }
 
@@ -149,11 +150,29 @@ fn find_min_max(input: [Rgb8; 16]) -> (Rgb8, Rgb8) {
     (min_color, max_color)
 }
 
+pub struct Bc1;
+
+impl Decoder for Bc1 {}
+
+impl Sealed for Bc1 {
+    const BLOCK_SIZE: usize = 8;
+    const NUM_PIXELS: usize = 4;
+
+    fn decode(block: &[u8], out: &mut [crate::Rgba8]) {
+        let block: [u8; Self::BLOCK_SIZE] = block[0..8].try_into().unwrap();
+        let pixels = decode(block);
+
+        for (index, px) in pixels.iter().enumerate() {
+            out[index] = Rgba8::from_array([px.r, px.g, px.b, 255]);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::Rgb8;
 
-    use super::{decode, encode};
+    use super::{decode, decode_565_rgb, encode};
 
     #[test]
     fn bc1_encode() {
@@ -227,5 +246,18 @@ mod tests {
                 Rgb8 { r: 8, g: 10, b: 12 },
             ]
         );
+    }
+
+    #[test]
+    fn decode_565() {
+        let rgb = decode_565_rgb(u16::from_le_bytes([107, 74]));
+        assert_eq!(
+            rgb,
+            Rgb8 {
+                r: 72,
+                g: 76,
+                b: 88
+            }
+        )
     }
 }

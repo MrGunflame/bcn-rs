@@ -1,11 +1,15 @@
 #![no_std]
 
-#[cfg(test)]
+extern crate alloc;
+
+//#[cfg(test)]
+//extern crate std;
 extern crate std;
 
 pub mod bc1;
 pub mod bc2;
 pub mod bc7;
+pub mod stream;
 
 mod bits;
 
@@ -89,6 +93,25 @@ impl Rgb8 {
 
 fn read_u16_le(a: u8, b: u8) -> u16 {
     u16::from_le_bytes([a, b])
+}
+
+pub trait Encoder: private::Sealed {}
+
+pub trait Decoder: private::Sealed {}
+
+mod private {
+    use crate::Rgba8;
+
+    pub trait Sealed {
+        /// Input block size.
+        const BLOCK_SIZE: usize;
+
+        /// Number of pixels in both direction for each block.
+        const NUM_PIXELS: usize;
+
+        /// decode(&[u8; Self::BLOCK_SIZE], out: &mut [Rgba8; Self::NUM_PIXELS * Self::NUM_PIXELS]);
+        fn decode(block: &[u8], out: &mut [Rgba8]);
+    }
 }
 
 #[cfg(test)]
